@@ -1,0 +1,15 @@
+project:
+  type: website
+  output-dir: _site  # default, fine for GH Pages
+
+website:
+  title: "My Quarto Site"
+  navbar:
+    left:
+      - href: non-regression-demand.qmd
+        text: Distribution Demand
+
+format:
+  html:
+    theme: cosmo
+    toc: true

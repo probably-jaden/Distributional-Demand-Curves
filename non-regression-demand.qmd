@@ -5,6 +5,8 @@ execute:
   echo: false
   warning: false
   message: false
+  cache: true
+  cache.lazy: false
   fig-align: center
 ---
 
