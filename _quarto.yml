@@ -1,9 +1,8 @@
 project:
   type: website
-  output-dir: _site  # default, fine for GH Pages
 
 website:
-  title: "My Quarto Site"
+  title: "Demand Curve Estimation"
   navbar:
     left:
       - href: non-regression-demand.qmd
