@@ -1,0 +1,359 @@
+---
+title: "Non-regression techniques for Demand Curves"
+editor: visual
+execute:
+  echo: false
+  warning: false
+  message: false
+  fig-align: center
+---
+
+
+```{r setup}
+library(tidyverse)
+library(brms)
+library(ggplot2)
+library(patchwork)
+
+setwd("~/Documents/Intellectual Fun/Nile Analytics")
+
+iter_param = 8000
+```
+
+
+```{r data wrangling}
+halo <- read_csv("halo.csv")
+halo <- halo %>% 
+  mutate(log_wtp = log(wtp)) %>% 
+  filter(wtp != 0)
+
+vc = 10
+fc = 1000
+pop = 10000
+
+halo_cum <- halo %>% 
+  arrange(desc(wtp)) %>% 
+  mutate(wtp_cum = cumsum(wtp),
+         wtp_cum_prop = wtp_cum / max(wtp_cum),
+         qty = wtp_cum_prop * pop,
+         rev = qty * wtp,
+         cost = qty * vc + fc,
+         prof = rev - cost)
+
+```
+
+
+```{r log-normal}
+
+# prior predictive simulations
+# ggplot(data = tibble(x_val = exp(rnorm(1e6, rnorm(1e6, 4, 1), rexp(1e6, 5)))))+
+#   geom_density(aes(x = x_val))
+
+halo_norm <- brm(
+  data = halo,
+  family = gaussian,
+  log_wtp ~ 1,
+  prior = c(prior(normal(4, 1), class = Intercept),
+          prior(exponential(5), class = sigma)),
+  iter = iter_param, warmup = iter_param/2, chains = 4, cores = 4, seed = 20,
+  file = "fits/halo_norm.05", backend = "cmdstanr", silent = 2
+)
+
+
+hist_lnorm <- as_data_frame(halo_norm) %>% 
+  mutate(est = exp(rnorm(n(), (Intercept), sigma))) %>% 
+  ggplot()+
+  geom_density(aes(x = est), adjust = 2)+
+  #geom_vline(data = halo, aes(xintercept = wtp), color = "red", alpha = .05, lwd = 3)+
+  geom_histogram(data = halo, aes(x = wtp, y = after_stat(density)), bins =20,  alpha = .3) +
+  xlim(c(0, max(halo$wtp)))+
+  labs(title = "Log-normal Distribution", x = "Price", y = "")
+
+
+halo_lnorm_cum<- as_data_frame(halo_norm) %>% 
+  mutate(est = exp(rnorm(n(), Intercept, sigma))) %>% 
+  arrange(desc(est)) %>% 
+  mutate(cumEst = cumsum(est),
+         cumEstProp = cumEst/max(cumEst),
+         qty = cumEstProp * pop,
+         rev = qty * est,
+         cost = qty * vc + fc,
+         prof = rev - cost)
+
+surv_lnorm <- ggplot()+
+  geom_line(data = halo_lnorm_cum, aes(x = est, y = cumEstProp)) +
+  geom_point(data = halo_cum, aes(x = wtp, y = wtp_cum_prop), alpha = .5)+
+  theme_minimal()+
+  labs(title = "Log-Normal Distribution", x = "Price", y = "% of Customers Purchasing")+
+  xlim(c(0, max(halo_cum$wtp)))
+
+max_lnorm <- halo_lnorm_cum$est[which.max(halo_lnorm_cum$prof)]
+ymax_lnorm <- max(halo_lnorm_cum$prof)
+
+prof_lnorm <- ggplot(data = halo_lnorm_cum)+
+  geom_line( aes(x = est, y = prof)) +
+  labs(title = "Log-normal Distribution", x = "Price", y = "Profit")+
+  xlim(c(0, max(halo_cum$wtp)))+
+  ylim(c(0, NA))+
+  geom_segment(aes(x = max_lnorm, xend = max_lnorm, y = 0, yend = ymax_lnorm), linetype = "dashed")
+
+```
+
+```{r exponential}
+# prior predictive simulations
+# ggplot(data = tibble(x_val = rexp(1e6, exp(rnorm(1e6, log(1/(300)), .5)))))+
+#   geom_density(aes(x = x_val))
+
+halo_exp <- brm(
+  data = halo,
+  family = exponential,
+  wtp ~ 1,
+  iter = iter_param, warmup = iter_param/2, chains = 4, cores = 4, seed = 20,
+  file = "fits/halo_exp.04", backend = "cmdstanr", silent = 2
+)
+
+hist_exp <- as_data_frame(halo_exp) %>% 
+  mutate(est = rexp(n(), 1/exp(Intercept))) %>% 
+  ggplot()+
+  geom_density(aes(x = est), adjust = 2)+
+  #geom_vline(data = halo, aes(xintercept = wtp), color = "red", alpha = .05, lwd = 3)+
+  geom_histogram(data = halo, aes(x = wtp, y = after_stat(density)), bins =20,  alpha = .3) +
+  xlim(c(0, max(halo$wtp)))+
+  labs(title = "Exponential Distribution", x = "Price", y = "")
+
+
+halo_exp_cum<- as_data_frame(halo_exp) %>% 
+  mutate(est = rexp(n(), 1/exp(Intercept))) %>% 
+  arrange(desc(est)) %>% 
+  mutate(cumEst = cumsum(est),
+         cumEstProp = cumEst/max(cumEst),
+         qty = cumEstProp * pop,
+         rev = qty * est,
+         cost = qty * vc + fc,
+         prof = rev - cost)
+
+surv_exp <- ggplot()+
+  geom_line(data = halo_exp_cum, aes(x = est, y = cumEstProp)) +
+  geom_point(data = halo_cum, aes(x = wtp, y = wtp_cum_prop), alpha = .5)+
+  theme_minimal()+
+  labs(title = "Exponential Distribution", x = "Price", y = "% of Customers Purchasing")+
+  xlim(c(0, max(halo_cum$wtp)))
+
+max_exp <- halo_exp_cum$est[which.max(halo_exp_cum$prof)]
+ymax_exp <- max(halo_exp_cum$prof)
+
+prof_exp <- ggplot(data = halo_exp_cum)+
+  geom_line( aes(x = est, y = prof)) +
+  labs(title = "Exponential Distribution", x = "Price", y = "Profit")+
+  xlim(c(0, max(halo_cum$wtp)))+
+  ylim(c(0, NA))+
+  geom_segment(aes(x = max_exp, xend = max_exp, y = 0, yend = ymax_exp), linetype = "dashed")
+
+```
+
+```{r weibull}
+# prior predictive simulations
+# ggplot(data = tibble(x_val = rweibull(1e6, scale = exp(rnorm(1e6, 4, 1)), 
+#                                            shape = rgamma(1e6, 15, 10))))+
+#   geom_density(aes(x = x_val))
+
+
+halo_weibull <- brm(
+  data = halo,
+  family = weibull(),
+  wtp ~ 1,
+  prior = c(prior(normal(4, 1), class = Intercept),  # log scale for shape param
+            prior(gamma(3, 2), class = shape)),      # shape parameter
+  iter = iter_param, warmup = iter_param/2, chains = 4, cores = 4, seed = 10,
+  file = "fits/halo_weibull.08", backend = "cmdstanr", silent = 2
+)
+
+
+hist_weib <- as_data_frame(halo_weibull) %>% 
+  mutate(est = rweibull(n(), scale = exp(Intercept), shape = shape)) %>% 
+  ggplot()+
+  geom_density(aes(x = (est)), adjust = 2)+
+  geom_histogram(data = halo, aes(x = wtp, y = after_stat(density)), bins =20,  alpha = .3) +
+  xlim(c(0, max(halo$wtp)))+
+  labs(title = "Weibull Distribution", x = "Price", y = "")
+
+halo_weibull_cum <- as_data_frame(halo_weibull) %>% 
+  mutate(est = rweibull(n(), scale = exp(Intercept), shape = shape)) %>% 
+  arrange(desc(est)) %>% 
+  mutate(cumEst = cumsum(est),
+         cumEstProp = cumEst/max(cumEst),
+         qty = cumEstProp * pop,
+         rev = qty * est,
+         cost = qty * vc + fc,
+         prof = rev - cost)
+
+surv_weib <- ggplot()+
+  geom_line(data = halo_weibull_cum, aes(x = est, y = cumEstProp)) +
+  geom_point(data = halo_cum, aes(x = wtp, y = wtp_cum_prop), alpha = .5)+
+  theme_minimal()+
+  labs(title = "Weibull Distribution", x = "Price", y = "% of Customers Purchasing")+
+  xlim(c(0, max(halo_cum$wtp)))
+
+max_weib <- halo_weibull_cum$est[which.max(halo_weibull_cum$prof)]
+ymax_weib <- max(halo_weibull_cum$prof)
+
+prof_weib <- ggplot(data = halo_weibull_cum)+
+  geom_line( aes(x = est, y = prof)) +
+  labs(title = "Weibull Distribution", x = "Price", y = "Profit")+
+  xlim(c(0, max(halo_cum$wtp)))+
+  ylim(c(0, NA))+
+  geom_segment(aes(x = max_weib, xend = max_weib, y = 0, yend = ymax_weib), linetype = "dashed")
+
+
+```
+
+```{r gamma}
+
+# Prior predictvie simulations
+# ggplot(data = tibble(x_val = rgamma(1e6, rnorm(1e6, 4, 0.8), rgamma(1e6, 3, 0.01))))+
+#   geom_density(aes(x = x_val))
+
+halo_gamma <- brm(
+  data = halo,
+  family = Gamma(link = "log"),
+  wtp ~ 1,
+  prior = c(prior(normal(4, 0.5), class = Intercept),  # log scale
+            prior(gamma(0.01, 0.01), class = shape)),  # shape parameter
+  iter = iter_param, warmup = iter_param/2, chains = 4, cores = 4, seed = 10,
+  file = "fits/halo_gamma.05", backend = "cmdstanr", silent = 2
+)
+
+hist_gamma <- as_data_frame(halo_gamma) %>% 
+  mutate(est = rgamma(n(), shape = shape, rate = shape / exp(Intercept))) %>% 
+  ggplot()+
+  geom_density(aes(x = (est)), adjust = 2)+
+  geom_histogram(data = halo, aes(x = wtp, y = after_stat(density)), bins =20,  alpha = .3) +
+  xlim(c(0, max(halo$wtp)))+
+  labs(title = "Gamma Distribution", x = "Price", y = "")
+
+halo_gamma_cum <- as_data_frame(halo_gamma) %>% 
+  mutate(est = rgamma(n(), shape = shape, rate = shape / exp(Intercept))) %>% 
+  arrange(desc(est)) %>% 
+  mutate(cumEst = cumsum(est),
+         cumEstProp = cumEst/max(cumEst),
+         qty = cumEstProp * pop,
+         rev = qty * est,
+         cost = qty * vc + fc,
+         prof = rev - cost)
+
+
+surv_gamma <- ggplot()+
+  geom_line(data = halo_gamma_cum, aes(x = est, y = cumEstProp)) +
+  geom_point(data = halo_cum, aes(x = wtp, y = wtp_cum_prop), alpha = .5)+
+  labs(title = "Gamma Distribution", x = "Price", y = "% of Customers Purchasing")+
+  xlim(c(0, max(halo_cum$wtp)))+
+  theme_minimal()
+
+
+max_gamma <- halo_gamma_cum$est[which.max(halo_gamma_cum$prof)]
+ymax_gamma <- max(halo_gamma_cum$prof)
+
+prof_gamma <- ggplot(data = halo_gamma_cum)+
+  geom_line( aes(x = est, y = prof)) +
+  labs(title = "Gamma Distribution", x = "Price", y = "Profit")+
+  xlim(c(0, max(halo_cum$wtp)))+
+  ylim(c(0, NA))+
+  geom_segment(aes(x = max_gamma, xend = max_gamma, y = 0, yend = ymax_gamma), linetype = "dashed")
+
+```
+
+
+I've estimated the customer distribution for Halo, with 4 different distributions: Log-normal, Exponential, Weibull, and Gamma. All 4 of these distributions are commonly used in survival analysis, where one tries to estimate a distribution, especially the tails of how long something will survive. It's an analysis tool that I used working for Alex and Amano and is the gold-standard in engineering and actuarial life-time estimation. I know it sounds strange, but I think the structure of problems that survival analysis tackles are identical to our problem of how to construct the demand curve. 
+
+Below are the distribution estimates and a histogram of the halo WTP data. I call these non-regression techniques, but they still are a form of regression. Instead of predicting **Quantity** using **Price** as a covariate we just predict **Price** that is what the next **WTP** is going to be. For example the log-normal distribution here literally uses the equivalent code:
+
+```{r, results = 'hide'}
+lm(log(wtp) ~ 1, data = halo)
+```
+
+
+Each distribution below looks eerily similar to each other. You'd expect them to look very different especially when you look at how different the distributions look in their the wiki articles for [Gamma](https://en.wikipedia.org/wiki/Gamma_distribution), [Exponential](https://en.wikipedia.org/wiki/Exponential_distribution). But this isn't a cause for alarm, since these plots represent posterior predictive bayesian simulations from multiple different fits stacked together. 
+
+To take the exponential plot as an example, this isn't just one exponential fit, but all of the plausible exponential fits layered together to make a non-exponential looking simulation. As more data is collected, we become more selective of all the exponential fits we think are actually plausible, and this plot will begin to resemble more and more a single exponential distribution that only slopes downward like the ones we see on it's [wiki page](https://en.wikipedia.org/wiki/Exponential_distribution).
+
+
+```{r}
+#| fig-height: 3
+#| fig-width: 10
+
+no_y_axis <- theme(
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.title.y = element_blank()
+)
+
+hist_lnorm + 
+  (hist_exp + no_y_axis) + 
+  (hist_weib + no_y_axis) + 
+  (hist_gamma + no_y_axis) + plot_layout(nrow = 1)
+```
+
+
+The upside of all of this is that we don't have to worry about getting the perfect distribution chosen especially with sparse data. They will give roughly the same answers. 
+
+This is lucky because there's not a really pure way to compare model choice in the way that people use $R^2$ to compare regressions. Though I do think it would be worth investigating some model comparison metrics eventually.
+
+
+```{r}
+#| fig-height: 3
+#| fig-width: 10
+
+
+surv_lnorm + 
+  (surv_exp + no_y_axis) + 
+  (surv_weib + no_y_axis) + 
+  (surv_gamma + no_y_axis) + plot_layout(nrow = 1)
+
+```
+
+
+Above I created the $1 - CDF$ for each of the simulations along with the halo data mapped on. In survival analysis are called survival functions which I like to imagine as "how many people would *survive* and still be our customers if we raised our price **X** amount." 
+
+These are just the cumulative sum of the distributions I showed in the first plot. But the huge upside to these versions of the demand curves is that they don't violate the independence assumption at all. I don't have any proof for why violating independence is so bad, but I think it's telling that survival analysis would balk at using regression here. Instead they'd model the distribution of how long things last, and we are trying to find the distribution for how long customers will allow us to ratchet up our prices.
+
+They're all s-shaped, but just like our fist plots of the density curves with more data each distribution will begin to resemble it's own $CDF$. Which aren't always s-shaped.
+
+The **intercept** is going to be **1** for these graphs, representing that 100% of our surveyed people would buy the product if it were free. In some ways this is nice. It means that scaling from the sample size to the population size is very intuitive, just multiply the entire curve by your population. In other way's this is unfortunate because it implies that each customer will only buy one of our products, a "durable" good. I see ways to address this, but I won't go into them here. Additionally it sounds like you have a nice interpretation for the intercept parameter, that you were using in your explanation of what is competitive advantage. I'm not sure if getting rid of that interpretable intercept makes this approach irredeemable to you.
+
+```{r}
+#| fig-height: 3
+#| fig-width: 10
+
+
+(prof_lnorm + no_y_axis) + 
+  (prof_exp + no_y_axis) + 
+  (prof_weib + no_y_axis) + 
+  (prof_gamma + no_y_axis) + plot_layout(nrow = 1)
+
+```
+
+For this last plot I modeled profit. I plugged in:
+
+- variable cost: **$10**
+- fixed cost: **$1,000**
+- population: **10,000**
+
+I compared the optimal profitability price to what your current calculator/website gives for each regression transformation:
+
+**Regressions**
+
+- Linear: **$300**
+- Exponential:  **$214**
+- Sigmoid: **$155**
+
+**Distributions**
+
+- log-normal: **$`r round(max_lnorm)`**
+- exponential: **$`r round(max_exp)`**
+- weibull: **$`r round(max_weib)`**
+- gamma: **$`r round(max_gamma)`**
+
+
+Admittedly the differences between log-normal best price and the weibull best price are quite big. But I think the consensus among the distribution methods that the price should be greater than >$250 is stark. Especially when we look at how the current profit analytics calculator recommends the sigmoid regression to have the best fit, and it only gives the optimal price at \$155.
+
+This probably needs to be tested against the other WTP datasets you gave me to see if these type of results replicate. Let me know your level of interest in this approach and I can see how much time I can devote to it. 
