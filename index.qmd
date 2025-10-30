@@ -349,3 +349,5 @@ I compared the optimal profitability price to what your current calculator/websi
 Admittedly the differences between log-normal best price and the weibull best price are quite big. But I think the consensus among the distribution methods that the price should be greater than \>\$250 is stark. Especially when we look at how the current profit analytics calculator recommends the sigmoid regression to have the best fit, and it only gives the optimal price at \$155.
 
 This probably needs to be tested against the other WTP datasets you gave me to see if these type of results replicate. Let me know your level of interest in this approach and I can see how much time I can devote to it.
+
+If you wanted to see the R code that I used the repo can be found [here](https://github.com/probably-jaden/Distributional-Demand-Curves/blob/main/index.qmd)
