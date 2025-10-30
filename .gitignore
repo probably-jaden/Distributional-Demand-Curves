@@ -13,7 +13,7 @@
 # Quarto / RMarkdown artifacts
 # ===============================
 *_cache/
-*_files/
+#*_files/
 *.utf8.md
 *.knit.md
 
