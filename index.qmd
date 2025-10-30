@@ -10,7 +10,6 @@ execute:
   fig-align: center
 ---
 
-
 ```{r setup}
 library(tidyverse)
 library(brms)
@@ -21,7 +20,6 @@ setwd("~/Documents/Intellectual Fun/Nile Analytics")
 
 iter_param = 8000
 ```
-
 
 ```{r data wrangling}
 halo <- read_csv("halo.csv")
@@ -43,7 +41,6 @@ halo_cum <- halo %>%
          prof = rev - cost)
 
 ```
-
 
 ```{r log-normal}
 
@@ -264,8 +261,7 @@ prof_gamma <- ggplot(data = halo_gamma_cum)+
 
 ```
 
-
-I've estimated the customer distribution for Halo, with 4 different distributions: Log-normal, Exponential, Weibull, and Gamma. All 4 of these distributions are commonly used in survival analysis, where one tries to estimate a distribution, especially the tails of how long something will survive. It's an analysis tool that I used working for Alex and Amano and is the gold-standard in engineering and actuarial life-time estimation. I know it sounds strange, but I think the structure of problems that survival analysis tackles are identical to our problem of how to construct the demand curve. 
+I've estimated the customer distribution for Halo, with 4 different distributions: Log-normal, Exponential, Weibull, and Gamma. All 4 of these distributions are commonly used in survival analysis, where one tries to estimate a distribution, especially the tails of how long something will survive. It's an analysis tool that I used working for Alex and Amano and is the gold-standard in engineering and actuarial life-time estimation. I know it sounds strange, but I think the structure of problems that survival analysis tackles are identical to our problem of how to construct the demand curve.
 
 Below are the distribution estimates and a histogram of the halo WTP data. I call these non-regression techniques, but they still are a form of regression. Instead of predicting **Quantity** using **Price** as a covariate we just predict **Price** that is what the next **WTP** is going to be. For example the log-normal distribution here literally uses the equivalent code:
 
@@ -273,11 +269,9 @@ Below are the distribution estimates and a histogram of the halo WTP data. I cal
 lm(log(wtp) ~ 1, data = halo)
 ```
 
-
-Each distribution below looks eerily similar to each other. You'd expect them to look very different especially when you look at how different the distributions look in their the wiki articles for [Gamma](https://en.wikipedia.org/wiki/Gamma_distribution), [Exponential](https://en.wikipedia.org/wiki/Exponential_distribution). But this isn't a cause for alarm, since these plots represent posterior predictive bayesian simulations from multiple different fits stacked together. 
+Each distribution below looks eerily similar to each other. You'd expect them to look very different especially when you look at how different the distributions look in their the wiki articles for [Gamma](https://en.wikipedia.org/wiki/Gamma_distribution), [Exponential](https://en.wikipedia.org/wiki/Exponential_distribution). But this isn't a cause for alarm, since these plots represent posterior predictive bayesian simulations from multiple different fits stacked together.
 
 To take the exponential plot as an example, this isn't just one exponential fit, but all of the plausible exponential fits layered together to make a non-exponential looking simulation. As more data is collected, we become more selective of all the exponential fits we think are actually plausible, and this plot will begin to resemble more and more a single exponential distribution that only slopes downward like the ones we see on it's [wiki page](https://en.wikipedia.org/wiki/Exponential_distribution).
-
 
 ```{r}
 #| fig-height: 3
@@ -295,11 +289,9 @@ hist_lnorm +
   (hist_gamma + no_y_axis) + plot_layout(nrow = 1)
 ```
 
-
-The upside of all of this is that we don't have to worry about getting the perfect distribution chosen especially with sparse data. They will give roughly the same answers. 
+The upside of all of this is that we don't have to worry about getting the perfect distribution chosen especially with sparse data. They will give roughly the same answers.
 
 This is lucky because there's not a really pure way to compare model choice in the way that people use $R^2$ to compare regressions. Though I do think it would be worth investigating some model comparison metrics eventually.
-
 
 ```{r}
 #| fig-height: 3
@@ -313,8 +305,7 @@ surv_lnorm +
 
 ```
 
-
-Above I created the $1 - CDF$ for each of the simulations along with the halo data mapped on. In survival analysis are called survival functions which I like to imagine as "how many people would *survive* and still be our customers if we raised our price **X** amount." 
+Above I created the $1 - CDF$ for each of the simulations along with the halo data mapped on. In survival analysis are called survival functions which I like to imagine as "how many people would *survive* and still be our customers if we raised our price **X** amount."
 
 These are just the cumulative sum of the distributions I showed in the first plot. But the huge upside to these versions of the demand curves is that they don't violate the independence assumption at all. I don't have any proof for why violating independence is so bad, but I think it's telling that survival analysis would balk at using regression here. Instead they'd model the distribution of how long things last, and we are trying to find the distribution for how long customers will allow us to ratchet up our prices.
 
@@ -336,27 +327,25 @@ The **intercept** is going to be **1** for these graphs, representing that 100% 
 
 For this last plot I modeled profit. I plugged in:
 
-- variable cost: **$10**
-- fixed cost: **$1,000**
-- population: **10,000**
+-   variable cost: **\$10**
+-   fixed cost: **\$1,000**
+-   population: **10,000**
 
 I compared the optimal profitability price to what your current calculator/website gives for each regression transformation:
 
 **Regressions**
 
-- Linear: **$300**
-- Exponential:  **$214**
-- Sigmoid: **$155**
+-   Linear: **\$300**
+-   Exponential: **\$214**
+-   Sigmoid: **\$155**
 
 **Distributions**
 
-- log-normal: **$`r round(max_lnorm)`**
-- exponential: **$`r round(max_exp)`**
-- weibull: **$`r round(max_weib)`**
-- gamma: **$`r round(max_gamma)`**
+-   log-normal: **\$`r round(max_lnorm)`**
+-   exponential: **\$`r round(max_exp)`**
+-   weibull: **\$`r round(max_weib)`**
+-   gamma: **\$`r round(max_gamma)`**
 
+Admittedly the differences between log-normal best price and the weibull best price are quite big. But I think the consensus among the distribution methods that the price should be greater than \>\$250 is stark. Especially when we look at how the current profit analytics calculator recommends the sigmoid regression to have the best fit, and it only gives the optimal price at \$155.
 
-Admittedly the differences between log-normal best price and the weibull best price are quite big. But I think the consensus among the distribution methods that the price should be greater than >$250 is stark. Especially when we look at how the current profit analytics calculator recommends the sigmoid regression to have the best fit, and it only gives the optimal price at \$155.
-
-This probably needs to be tested against the other WTP datasets you gave me to see if these type of results replicate. Let me know your level of interest in this approach and I can see how much time I can devote to it. 
-
+This probably needs to be tested against the other WTP datasets you gave me to see if these type of results replicate. Let me know your level of interest in this approach and I can see how much time I can devote to it.
