@@ -21,7 +21,7 @@
 _site/
 
 # Large rendered docs (keep only selected HTMLs)
-*.html
+# *.html
 
 # ===============================
 # Model fits / images / large objects
